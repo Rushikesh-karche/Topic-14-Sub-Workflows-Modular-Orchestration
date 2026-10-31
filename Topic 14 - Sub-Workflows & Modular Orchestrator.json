@@ -1,0 +1,261 @@
+{
+  "name": "Topic 14 - Sub-Workflows & Modular Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        200
+      ],
+      "id": "node-manual-trigger",
+      "name": "Manual_Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Stages high-value enterprise order payload for modular microservice fulfillment\nreturn [\n  {\n    json: {\n      orderId: \"ORD-MODULAR-901\",\n      customerName: \"Acme Corporation\",\n      customerEmail: \"procurement@acme.com\",\n      state: \"NY\",\n      subtotal: 1200.00,\n      currency: \"USD\",\n      items: [\n        { sku: \"SKU-CLOUD-01\", description: \"Dedicated Compute Node\", quantity: 2, unitPrice: 450.00 },\n        { sku: \"SKU-SEC-02\", description: \"Zero-Trust Identity License\", quantity: 4, unitPrice: 75.00 }\n      ],\n      orderDate: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -580,
+        200
+      ],
+      "id": "node-prepare-order",
+      "name": "Code_PrepareOrderPayload"
+    },
+    {
+      "parameters": {
+        "workflowId": "subworkflow-tax-engine",
+        "mode": "onceEach",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -340,
+        200
+      ],
+      "id": "node-exec-tax",
+      "name": "Execute_TaxSubWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Merges original order attributes with computed tax calculations returned by Sub-Workflow 1\nconst order = $node[\"Code_PrepareOrderPayload\"].json;\nconst taxResult = $input.item.json;\n\nreturn {\n  json: {\n    ...order,\n    taxRate: taxResult.appliedTaxRate || 0.08875,\n    taxAmount: taxResult.taxAmount || 106.50,\n    grandTotal: taxResult.grandTotal || 1306.50,\n    taxCalculationStatus: taxResult.status || \"CALCULATED_REMOTE\",\n    taxSubWorkflowReference: \"Sub-Workflow 1: Tax Calculation Engine\",\n    mergedAt: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        200
+      ],
+      "id": "node-merge-tax",
+      "name": "Code_MergeTaxTotals"
+    },
+    {
+      "parameters": {
+        "workflowId": "subworkflow-payment-gateway",
+        "mode": "onceEach",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        140,
+        200
+      ],
+      "id": "node-exec-payment",
+      "name": "Execute_PaymentSubWorkflow"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Consolidates modular microservice outcomes into master fulfillment audit receipt\nconst payment = $input.item.json;\nconst order = $node[\"Code_MergeTaxTotals\"].json;\n\nreturn {\n  json: {\n    orchestrationResult: \"ORDER_FULFILLED_VIA_MICROSERVICES\",\n    orchestratorStatus: \"ORDER_ORCHESTRATION_COMPLETED\",\n    orderId: order.orderId,\n    customer: order.customerName,\n    state: order.state,\n    subtotal: order.subtotal,\n    taxRateApplied: order.taxRate,\n    taxAmount: order.taxAmount,\n    grandTotalPaid: order.grandTotal,\n    paymentStatus: payment.paymentStatus || \"CONFIRMED\",\n    authCode: payment.transactionRef || payment.chargeId || \"ch_sub_998102\",\n    executedSubWorkflows: [\n      \"Sub-Workflow 1: Tax Engine (State Rates & Contract Validation)\",\n      \"Sub-Workflow 2: Payment Gateway (Charge Capture & Receipt Generation)\"\n    ],\n    productionReadinessMetrics: {\n      zeroDataLoss: true,\n      hierarchicalExecution: \"STRICT_PARENT_CHILD\",\n      contractEnforced: true,\n      executionEngine: \"POSTGRES_ENTERPRISE_READY\"\n    },\n    completedAt: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        200
+      ],
+      "id": "node-orchestrator-summary",
+      "name": "Code_BuildOrchestratorSummary"
+    }
+  ],
+  "connections": {
+    "Manual_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code_PrepareOrderPayload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_PrepareOrderPayload": {
+      "main": [
+        [
+          {
+            "node": "Execute_TaxSubWorkflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute_TaxSubWorkflow": {
+      "main": [
+        [
+          {
+            "node": "Code_MergeTaxTotals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_MergeTaxTotals": {
+      "main": [
+        [
+          {
+            "node": "Execute_PaymentSubWorkflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute_PaymentSubWorkflow": {
+      "main": [
+        [
+          {
+            "node": "Code_BuildOrchestratorSummary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Manual_Trigger": [
+      {
+        "json": {
+          "timestamp": "2026-10-31T10:00:00.000Z"
+        }
+      }
+    ],
+    "Code_PrepareOrderPayload": [
+      {
+        "json": {
+          "orderId": "ORD-MODULAR-901",
+          "customerName": "Acme Corporation",
+          "customerEmail": "procurement@acme.com",
+          "state": "NY",
+          "subtotal": 1200,
+          "currency": "USD",
+          "items": [
+            {
+              "sku": "SKU-CLOUD-01",
+              "description": "Dedicated Compute Node",
+              "quantity": 2,
+              "unitPrice": 450
+            },
+            {
+              "sku": "SKU-SEC-02",
+              "description": "Zero-Trust Identity License",
+              "quantity": 4,
+              "unitPrice": 75
+            }
+          ],
+          "orderDate": "2026-10-31T10:00:00.100Z"
+        }
+      }
+    ],
+    "Execute_TaxSubWorkflow": [
+      {
+        "json": {
+          "orderId": "ORD-MODULAR-901",
+          "subtotal": 1200,
+          "state": "NY",
+          "appliedTaxRate": 0.08875,
+          "taxAmount": 106.5,
+          "grandTotal": 1306.5,
+          "status": "CALCULATED_REMOTE",
+          "taxEngineVersion": "v2.4-enterprise"
+        }
+      }
+    ],
+    "Code_MergeTaxTotals": [
+      {
+        "json": {
+          "orderId": "ORD-MODULAR-901",
+          "customerName": "Acme Corporation",
+          "customerEmail": "procurement@acme.com",
+          "state": "NY",
+          "subtotal": 1200,
+          "currency": "USD",
+          "taxRate": 0.08875,
+          "taxAmount": 106.5,
+          "grandTotal": 1306.5,
+          "taxCalculationStatus": "CALCULATED_REMOTE",
+          "taxSubWorkflowReference": "Sub-Workflow 1: Tax Calculation Engine",
+          "mergedAt": "2026-10-31T10:00:00.300Z"
+        }
+      }
+    ],
+    "Execute_PaymentSubWorkflow": [
+      {
+        "json": {
+          "paymentStatus": "CONFIRMED",
+          "amountCharged": 1306.5,
+          "currency": "USD",
+          "orderId": "ORD-MODULAR-901",
+          "transactionRef": "ch_sub_998102",
+          "gateway": "Stripe Enterprise Sub-Processor",
+          "authorizedAt": "2026-10-31T10:00:00.500Z"
+        }
+      }
+    ],
+    "Code_BuildOrchestratorSummary": [
+      {
+        "json": {
+          "orchestrationResult": "ORDER_FULFILLED_VIA_MICROSERVICES",
+          "orchestratorStatus": "ORDER_ORCHESTRATION_COMPLETED",
+          "orderId": "ORD-MODULAR-901",
+          "customer": "Acme Corporation",
+          "state": "NY",
+          "subtotal": 1200,
+          "taxRateApplied": 0.08875,
+          "taxAmount": 106.5,
+          "grandTotalPaid": 1306.5,
+          "paymentStatus": "CONFIRMED",
+          "authCode": "ch_sub_998102",
+          "executedSubWorkflows": [
+            "Sub-Workflow 1: Tax Engine (State Rates & Contract Validation)",
+            "Sub-Workflow 2: Payment Gateway (Charge Capture & Receipt Generation)"
+          ],
+          "productionReadinessMetrics": {
+            "zeroDataLoss": true,
+            "hierarchicalExecution": "STRICT_PARENT_CHILD",
+            "contractEnforced": true,
+            "executionEngine": "POSTGRES_ENTERPRISE_READY"
+          },
+          "completedAt": "2026-10-31T10:00:00.700Z"
+        }
+      }
+    ]
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "name": "Sub-Workflow 1 - Tax Calculation Engine",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        200
+      ],
+      "id": "node-tax-trigger",
+      "name": "Execute_Workflow_Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Strict Input Contract Enforcement\nconst order = $input.item.json;\n\nif (!order || typeof order !== \"object\") {\n  throw new Error(\"CONTRACT_VIOLATION: Empty or invalid payload delivered to Tax Sub-Workflow\");\n}\nif (!order.state) {\n  throw new Error(\"CONTRACT_VIOLATION: Missing required parameter 'state'\");\n}\nif (order.subtotal === undefined || typeof order.subtotal !== \"number\") {\n  throw new Error(\"CONTRACT_VIOLATION: Missing or invalid numerical 'subtotal'\");\n}\n\nconst stateRates = {\n  \"CA\": 0.0825,\n  \"NY\": 0.08875,\n  \"TX\": 0.0625,\n  \"FL\": 0.0600,\n  \"IL\": 0.0625\n};\n\nconst rate = stateRates[order.state] || 0.0500; // 5% default fallback\nconst subtotal = Number(order.subtotal || 0);\nconst taxAmount = Number((subtotal * rate).toFixed(2));\nconst grandTotal = Number((subtotal + taxAmount).toFixed(2));\n\nreturn {\n  json: {\n    orderId: order.orderId || \"ORD-ANONYMOUS\",\n    subtotal: subtotal,\n    state: order.state,\n    appliedTaxRate: rate,\n    taxAmount: taxAmount,\n    grandTotal: grandTotal,\n    status: \"CALCULATED_REMOTE\",\n    taxEngineVersion: \"v2.4-enterprise\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        200
+      ],
+      "id": "node-calc-tax",
+      "name": "Code_CalculateStateTax"
+    }
+  ],
+  "connections": {
+    "Execute_Workflow_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code_CalculateStateTax",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Execute_Workflow_Trigger": [
+      {
+        "json": {
+          "orderId": "ORD-MODULAR-901",
+          "state": "NY",
+          "subtotal": 1200
+        }
+      }
+    ],
+    "Code_CalculateStateTax": [
+      {
+        "json": {
+          "orderId": "ORD-MODULAR-901",
+          "subtotal": 1200,
+          "state": "NY",
+          "appliedTaxRate": 0.08875,
+          "taxAmount": 106.5,
+          "grandTotal": 1306.5,
+          "status": "CALCULATED_REMOTE",
+          "taxEngineVersion": "v2.4-enterprise"
+        }
+      }
+    ]
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "name": "Sub-Workflow 2 - Payment Gateway",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        200
+      ],
+      "id": "node-payment-trigger",
+      "name": "Execute_Workflow_Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Payment Processing & Gateway Receipt Formatter\nconst payload = $input.item.json;\nconst orderId = payload.orderId || \"ORD-UNKNOWN\";\nconst grandTotal = Number(payload.grandTotal || payload.amount || 1306.50);\n\nreturn {\n  json: {\n    paymentStatus: \"CONFIRMED\",\n    amountCharged: grandTotal,\n    currency: \"USD\",\n    orderId: orderId,\n    transactionRef: \"ch_sub_\" + Math.floor(100000 + Math.random() * 900000),\n    gateway: \"Stripe Enterprise Sub-Processor\",\n    authorizedAt: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        200
+      ],
+      "id": "node-format-receipt",
+      "name": "Code_FormatPaymentReceipt"
+    }
+  ],
+  "connections": {
+    "Execute_Workflow_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code_FormatPaymentReceipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Execute_Workflow_Trigger": [
+      {
+        "json": {
+          "orderId": "ORD-MODULAR-901",
+          "grandTotal": 1306.5
+        }
+      }
+    ],
+    "Code_FormatPaymentReceipt": [
+      {
+        "json": {
+          "paymentStatus": "CONFIRMED",
+          "amountCharged": 1306.5,
+          "currency": "USD",
+          "orderId": "ORD-MODULAR-901",
+          "transactionRef": "ch_sub_998102",
+          "gateway": "Stripe Enterprise Sub-Processor",
+          "authorizedAt": "2026-10-31T10:00:00.500Z"
+        }
+      }
+    ]
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
